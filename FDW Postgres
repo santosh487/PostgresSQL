@@ -1,0 +1,74 @@
+-------------Sql Server 
+----Created the table 
+
+create table attendance(
+id int identity(1,1),
+emp_id int,
+login_date date,
+login_time varchar(50));
+
+
+=========Postgres 
+--------Installation sql server extension 
+sudo apt-get -y install postgresql-14-tds-fdw
+
+
+create extension tds_fdw;   => Created the extension for sql server
+
+------Creation the server 
+CREATE SERVER mssql_server_GOIMS
+FOREIGN DATA WRAPPER tds_fdw
+OPTIONS (servername '192.168.40.121', port '1433', database 'GOIMS');
+
+
+----------Creation thee user mapping 
+create USER MAPPING FOR postgres
+SERVER mssql_server_GOIMS 
+OPTIONS (username 'sqlserver', password 'password');
+
+ 
+-----------------Creation the foreign table 
+create  foreign  table attendance(
+id int ,
+emp_id int,
+login_date text,
+login_time varchar(50)
+)
+SERVER mssql_server_GOIMS
+OPTIONS (schema_name 'dbo', table_name 'attendance');
+
+
+-------------------------
+select * from attendance;
+----------------------------
+
+========Sql Server 
+=====inserted the dummy data 
+declare @i int=1
+declare @j int=1
+declare @date datetime
+declare @time varchar(50)
+
+set @date='2022-5-20'
+
+while @j<=250000
+begin
+set @time ='10:10:01'
+set @i=1
+while @i<=5
+begin
+set @time ='10:10:0'+convert(varchar(10),@i)
+insert into attendance(emp_id,login_date,login_time) values(@j,@date,@time)
+
+set @i=@i+1
+end
+
+set @j=@j+1
+end
+go
+
+
+====================Postgres 
+----Fetched the data from sql server 
+
+Select * from attendance
