@@ -1,0 +1,21 @@
+drop sequence seq;
+
+create sequence user_seq
+increment by 1
+minvalue 1
+maxvalue 9223372036854775807;
+
+drop table santosh;
+create table santosh(
+	id int ,
+	name varchar(20)
+);
+
+insert into santosh values (nextval('user_seq'), 'santosh');
+insert into santosh values (nextval('user_seq'), 'sunil');
+insert into santosh values (nextval('user_seq'), 'sagar');
+
+select 	currval('user_seq');
+select nextval('user_seq'); 
+
+select * from santosh;
