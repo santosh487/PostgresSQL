@@ -1,0 +1,235 @@
+
+create sequence user_mysequence   
+increment 1   
+minvalue 1    
+maxvalue 10000000  
+start 1  
+cycle; 
+
+  
+
+CREATE TABLE users1( 
+  id    int PRIMARY KEY, 
+  email VARCHAR(40) NOT NULL 
+); 
+
+  
+CREATE TABLE users2( 
+  id    int PRIMARY KEY, 
+  email VARCHAR(40) NOT NULL 
+); 
+
+CREATE TABLE users3( 
+  id    int PRIMARY KEY, 
+  email VARCHAR(40) NOT NULL 
+); 
+
+CREATE TABLE users4( 
+  id    int PRIMARY KEY, 
+  email VARCHAR(40) NOT NULL 
+); 
+CREATE TABLE users5( 
+  id    int PRIMARY KEY, 
+  email VARCHAR(40) NOT NULL 
+); 
+
+
+
+CREATE TABLE public.t_history ( 
+        id serial, 
+		tstamp timestamp DEFAULT now(), 
+        schemaname text, 
+        tabname text, 
+        operation text, 
+        who text DEFAULT current_user, 
+        new_val json, 
+        old_val json 
+); 
+
+
+select * from t_history; 
+
+create function change_trigger() 
+returns trigger 
+as $$ 
+       begin 
+           if TG_OP = 'INSERT' then 
+			    insert into public.t_history (tabname,schemaname,operation,new_val)
+					values (TG_RELNAME,TG_TABLE_SCHEMA,TG_OP,row_to_json(new));
+
+				return new;
+
+			elsif TG_OP = 'UPDATE' then 
+                 insert into public.t_history (tabname,schemaname,operation,new_val,old_val)
+					values (TG_RELNAME,TG_TABLE_SCHEMA,TG_OP, row_to_json(new),row_to_json(old));
+				
+				return new;
+
+			elsif TG_OP = 'DELETE' then 
+            	insert into public.t_history (tabname,schemaname, operation,old_val)
+            		values (TG_RELNAME,TG_TABLE_SCHEMA,TG_OP,row_to_json(old));
+
+				return old;
+			end if;
+		end;
+
+$$ language 'plpgsql' security definer;
+
+  
+
+create or replace function public.user_dynamic_table_histroy( ) 
+returns VARCHAR 
+language plpgsql 
+as $function$ 
+declare 
+    tablename VARCHAR;
+	dynamicQuery VARCHAR;
+	additionaldata RECORD;
+begin 
+   for additionaldata in (with cte1 as 
+										(select table_name as tbl 
+										from information_schema.tables 
+										where table_type = 'BASE TABLE'					
+											and table_schema not in ('pg_catalog', 'information_schema')) 
+							select tbl 
+							from cte1
+							where tbl not in ('t_history') 
+							and tbl not in (select event_object_table as table_name
+											from information_schema.triggers
+											group by table_name ,trigger_name))  
+
+	loop						 
+	  	dynamicQuery =   '	CREATE TRIGGER tt 
+							BEFORE INSERT OR UPDATE OR DELETE ON ' || additionaldata.tbl || 
+						 '	FOR EACH ROW EXECUTE PROCEDURE change_trigger()';
+		execute dynamicQuery;
+	end loop;
+return 'success';
+end; $function$; 
+----------------------------------------------------------------------------------------------
+select ttt.tbl 
+ from (select	tt.tbl from
+			(select table_name as tbl from
+			      information_schema.tables 
+			      where table_type = 'BASE TABLE'
+					and table_schema not in ('pg_catalog', 'information_schema')  
+) tt where	tt.tbl not in ('t_history')) ttt
+where ttt.tbl not in(
+	select
+		event_object_table as table_name
+	from
+		information_schema.triggers
+	group by
+		table_name ,
+		trigger_name)  
+-------------------------------------------------------------------------------------------------- 
+
+select * from user_dynamic_table_histroy(); 
+
+select * from t_history; 
+
+SELECT  event_object_table AS table_name ,trigger_name          
+FROM information_schema.triggers   
+GROUP BY table_name , trigger_name  
+ORDER BY table_name ,trigger_name ; 
+
+DROP TRIGGER  tt  
+ON users5  CASCADE ; 
+
+INSERT INTO users1(id,email) 
+select  
+nextval('user_mysequence'), 
+  'user_' || seq || '@' || ( 
+    CASE (RANDOM() * 2)::INT 
+      WHEN 0 THEN 'gmail' 
+      WHEN 1 THEN 'hotmail' 
+      WHEN 2 THEN 'yahoo' 
+    END 
+  ) || '.com' AS email 
+FROM GENERATE_SERIES(1, 10000) seq; 
+
+INSERT INTO users2(id,email) 
+select  
+nextval('user_mysequence'), 
+  'user_' || seq || '@' || ( 
+    CASE (RANDOM() * 2)::INT 
+      WHEN 0 THEN 'gmail' 
+      WHEN 1 THEN 'hotmail' 
+      WHEN 2 THEN 'yahoo' 
+    END 
+  ) || '.com' AS email 
+FROM GENERATE_SERIES(1, 10000) seq; 
+
+  
+
+INSERT INTO users3(id,email) 
+select  
+nextval('user_mysequence'), 
+  'user_' || seq || '@' || ( 
+    CASE (RANDOM() * 2)::INT 
+      WHEN 0 THEN 'gmail' 
+      WHEN 1 THEN 'hotmail' 
+      WHEN 2 THEN 'yahoo' 
+    END 
+  ) || '.com' AS email 
+FROM GENERATE_SERIES(1, 10000) seq; 
+
+  
+
+INSERT INTO users4(id,email) 
+select  
+nextval('user_mysequence'), 
+  'user_' || seq || '@' || ( 
+    CASE (RANDOM() * 2)::INT 
+      WHEN 0 THEN 'gmail' 
+      WHEN 1 THEN 'hotmail' 
+      WHEN 2 THEN 'yahoo' 
+    END 
+  ) || '.com' AS email 
+FROM GENERATE_SERIES(1, 10000) seq; 
+
+  
+
+INSERT INTO users5(id,email) 
+select  
+nextval('user_mysequence'), 
+  'user_' || seq || '@' || ( 
+    CASE (RANDOM() * 2)::INT 
+      WHEN 0 THEN 'gmail' 
+      WHEN 1 THEN 'hotmail' 
+      WHEN 2 THEN 'yahoo' 
+    END 
+  ) || '.com' AS email 
+FROM GENERATE_SERIES(1, 10000) seq; 
+
+select * from users1 u ; 
+select * from users2 u ; 
+select * from users3 u ; 
+select * from users4 u ; 
+select * from users5 u ; 
+
+select * from t_history tl ;
+
+CREATE TABLE users6( 
+  id    int PRIMARY KEY, 
+  email VARCHAR(40) NOT NULL 
+); 
+
+select * from user_dynamic_table_histroy(); 
+
+INSERT INTO users6(id,email) 
+select  
+nextval('user_mysequence'), 
+  'user_' || seq || '@' || ( 
+    CASE (RANDOM() * 2)::INT 
+      WHEN 0 THEN 'gmail' 
+      WHEN 1 THEN 'hotmail' 
+      WHEN 2 THEN 'yahoo' 
+    END 
+  ) || '.com' AS email 
+FROM GENERATE_SERIES(1, 10000) seq; 
+
+select * from users6 u ; 
+
+select * from t_history tl ;
+
