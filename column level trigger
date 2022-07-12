@@ -1,0 +1,73 @@
+drop table history_;
+CREATE TABLE tbl_history
+(
+  operation_ character varying(120) NOT NULL ,
+  table_name_ character varying(120) NOT NULL ,
+  column_name_ character varying(120) NOT NULL, 
+  old_value_ character varying(120) NOT NULL DEFAULT ''::character varying,
+  new_value_ character varying(120) NOT NULL DEFAULT ''::character varying
+ );
+ 
+
+select * from public.emp
+
+CREATE OR REPLACE FUNCTION make_history_()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS 
+$BODY$ 
+DECLARE
+    ri RECORD;
+    oldValue TEXT;
+	newValue TEXT;
+	isColumnSignificant BOOLEAN;
+	isValueModified BOOLEAN;
+BEGIN
+	IF (TG_OP = 'INSERT') OR (TG_OP = 'UPDATE') THEN
+		FOR ri IN
+	        SELECT column_name
+	        FROM information_schema.columns
+	        WHERE
+	            table_schema = quote_ident(TG_TABLE_SCHEMA)
+	        AND table_name = quote_ident(TG_TABLE_NAME)
+	        ORDER BY ordinal_position
+	    LOOP
+			EXECUTE 'SELECT ($1).' || ri.column_name || '::text' INTO newValue USING NEW;
+			IF (TG_OP = 'INSERT') THEN  
+				oldValue := ''::varchar;
+			ELSE  
+				EXECUTE 'SELECT ($1).' || ri.column_name || '::text' INTO oldValue USING OLD;
+			END IF;
+			isColumnSignificant := (position( '_x_' in ri.column_name ) < 1) AND (ri.column_name <> 'pkey_')
+		AND (ri.column_name <> 'record_created_') AND (ri.column_name <> 'record_modified_');
+		IF isColumnSignificant THEN
+				isValueModified := oldValue <> newValue; 
+				IF isValueModified THEN 
+					INSERT INTO tbl_history ( operation_, table_name_, column_name_, old_value_, new_value_ )
+					VALUES ( TG_OP, TG_TABLE_NAME, ri.column_name::VARCHAR, oldValue::VARCHAR, newValue::VARCHAR );
+				end if;
+			end if;
+	    END LOOP;
+		RETURN NEW; 
+	ELSIF (TG_OP = 'DELETE') THEN
+		INSERT INTO tbl_history ( operation_, table_name_, column_name_, old_value_, new_value_ )
+		VALUES ( TG_OP, TG_TABLE_NAME, ''::VARCHAR, ''::VARCHAR, ''::VARCHAR );
+		RETURN OLD;
+	END IF;
+ 	/* Should never reach this point. Branching in code above should always reach a call to RETURN. */
+	RAISE EXCEPTION 'Unexpectedly reached the bottom of this function without calling RETURN.';
+END;
+$BODY$;
+
+
+drop trigger record_audit_trig_emp on emp;
+
+CREATE or replace TRIGGER record_audit_trig_emp
+AFTER INSERT OR UPDATE on student
+   FOR EACH ROW EXECUTE PROCEDURE make_history_();
+
+select * from tbl_history;
+
+ 
+select * from student s ;
+update student set name = 'Bibek' where id = 1; 
