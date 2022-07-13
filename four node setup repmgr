@@ -1,0 +1,198 @@
+
+sudo apt install wget ca-certificates
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
+
+sudo apt-get update
+  sudo apt-get -y install postgresql
+
+
+sudo apt-get update
+sudo apt-get -y install repmgr
+sudo apt-get install postgresql-12-repmgr
+
+
+
+sudo apt-get --purge remove postgresql postgresql-*
+dpkg -l | grep postgres
+apt-get --purge remove package1 package
+
+sudo apt-get remove repmgr
+sudo apt-get -y autoremove repmgr
+sudo apt-get -y purge repmgr
+sudo apt-get -y autoremove --purge repmgr
+
+
+PG-Node1: Primary       192.168.50.211                           
+PG-Node2: Standby       192.168.50.212      
+PG-Node3: Standby       192.168.50.213        
+PG-Node4: Witness       192.168.50.214          
+
+192.168.50.211 PG-Node1
+192.168.50.212 PG-Node2
+192.168.50.213 PG-Node3
+192.168.50.214 PG-Node4
+
+primary node 
+
+sudo vi /etc/postgresql/14/main/postgresql.conf
+listen_addresses = '*' 
+max_wal_senders = 10
+max_replication_slots = 10
+wal_level = 'replica'
+hot_standby = on
+archive_mode = on
+archive_command = '/bin/true' 
+  
+
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+-----------------------------------------
+sudo -i -u postgres 
+createuser --superuser repmgr
+createdb --owner=repmgr repmgr
+psql -c "ALTER USER repmgr SET search_path TO repmgr, public;"
+
+postgresql.conf
+shared_preload_libraries = 'repmgr'   
+
+sudo vi /etc/repmgr.conf
+------------------------------------------------------
+For primary node (PG-Node1):
+node_id=1
+node_name='PG-Node1'
+conninfo='host=192.168.50.211 user=repmgr dbname=repmgr' 
+connect_timeout=2'
+data_directory='/var/lib/postgresql/14/main'
+-----------------------------------------
+For standby node 1 (PG-Node2)
+node_id=2
+node_name='PG-Node2'
+conninfo='host=192.168.50.212 user=repmgr dbname=repmgr 
+connect_timeout=2'
+data_directory='/var/lib/postgresql/14/main'
+------------------------------------
+For standby node 2 (PG-Node3)
+node_id=3
+node_name='PG-Node3'
+conninfo='host=192.168.50.213 user=repmgr dbname=repmgr connect_timeout=2'
+data_directory='/var/lib/postgresql/14/main'
+
+---------------------------------------------------------
+sudo vi /etc/postgresql/14/main/pg_hba.conf
+local   replication     repmgr                                        trust
+host    replication     repmgr          192.168.50.211/32             trust
+host    replication     repmgr          192.168.50.212/24             trust
+host    replication     repmgr          192.168.50.213/24             trust
+
+local   repmgr          repmgr                                        trust
+host    repmgr          repmgr          192.168.50.211/32             trust
+host    repmgr          repmgr          192.168.50.212/24             trust
+host    repmgr          repmgr          192.168.50.213/24             trust
+
+sudo systemctl restart postgresql
+psql 'host=192.168.50.211 user=repmgr dbname=repmgr connect_timeout=2'
+
+
+repmgr -f /etc/repmgr.conf primary register
+repmgr -f /etc/repmgr.conf cluster show
+-------------------------
+PG-Node2 and PG-Node3
+sudo -i -u postgres
+rm -rf /var/lib/postgresql/14/main/
+repmgr -h 192.168.50.211 -U repmgr -d repmgr -f /etc/repmgr.conf standby clone --dry-run
+repmgr -h 192.168.50.211 -U repmgr -d repmgr -f /etc/repmgr.conf standby clone
+
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+sudo service postgresql restart
+
+
+pg_ctl -D /var/lib/postgresql/14/main start
+repmgr standby register
+
+repmgr -f /etc/repmgr.conf standby register
+
+SELECT * FROM pg_stat_replication;
+
+repmgr -f /etc/repmgr.conf cluster show --compact
+
+================================================================
+witness node’s postgresql.conf file
+sudo vi /etc/postgresql/14/main/postgresql.conf
+listen_addresses = '*'
+shared_preload_libraries = 'repmgr'
+
+sudo -i -u postgres 
+createuser --superuser repmgr
+createdb --owner=repmgr repmgr
+psql -c "ALTER USER repmgr SET search_path TO repmgr, public;"
+
+
+sudo vi /etc/repmgr.conf
+repmgr.conf
+sudo vi /etc/repmgr.conf
+node_id=4
+node_name='PG-Node-Witness'
+conninfo='host=192.168.50.214 user=repmgr dbname=repmgr connect_timeout=2'
+data_directory='/var/lib/postgresql/14/main'
+
+psql 'host=192.168.50.211 user=repmgr dbname=repmgr connect_timeout=2'
+
+repmgr -f /etc/repmgr.conf witness register -h 192.168.50.211
+
+repmgr -f /etc/repmgr.conf cluster show --compact
+
+Defaults:postgres !requiretty
+postgres ALL = NOPASSWD: /usr/bin/systemctl stop postgresql, /usr/bin/systemctl start postgresql, /usr/bin/systemctl restart postgresql, /usr/bin/systemctl reload postgresql, /usr/bin/systemctl start repmgr12, /usr/bin/systemctl stop repmgr12
+
+
+
+
+
+
+
+
+failover='automatic'
+promote_command='repmgr standby promote -f /etc/repmgr.conf --log-to-file'
+follow_command='repmgr standby follow -f /etc/repmgr.conf --log-to-file --upstream-node-id=%n'
+monitor_interval_secs=2
+connection_check_type='ping'
+reconnect_attempts=4
+reconnect_interval=8
+primary_visibility_consensus=true
+standby_disconnect_on_failover=true
+
+repmgrd_service_start_command='sudo /usr/bin/systemctl start repmgrd.service'
+repmgrd_service_stop_command='sudo /usr/bin/systemctl stop repmgrd.service'
+
+service_start_command='sudo /usr/bin/systemctl start postgresql'
+service_stop_command='sudo /usr/bin/systemctl stop postgresql'
+service_restart_command='sudo /usr/bin/systemctl restart postgresql'
+service_reload_command='sudo /usr/bin/systemctl reload postgresql'
+
+monitoring_history=yes
+log_status_interval=60
+
+
+
+repmgr -f /etc/repmgr.conf daemon start --dry-run
+
+
+repmgr -f /etc/repmgr.conf daemon start
+sudo service repmgrd start
+sudo /usr/bin/systemctl start repmgrd.service
+sudo /etc/init.d/repmgrd start
+sudo service postgresql restart
+
+repmgr service status
+
+repmgrd.service
+sudo systemctl stop postgresql
+
+repmgr -f /etc/repmgr.conf cluster event --event=repmgrd_start
+
+
+repmgr -f /etc/repmgr.conf cluster show --compact
+
+repmgr -f /etc/repmgr.conf cluster event
