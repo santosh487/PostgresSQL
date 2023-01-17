@@ -1,0 +1,72 @@
+select * from public.locations l ;
+select * from public.departments_fake_data;
+truncate table departments_fake_data;
+select * from public.employees_fake_data;
+truncate table employees_fake_data;
+select * from employees_fake_data;
+    
+create table location_fake_data (lid int, lname varchar);
+insert into location_fake_data values(1,'Nepalgunj');
+insert into location_fake_data values(2,'Kathmandu');
+insert into location_fake_data values(3,'Dhangadi');
+    
+select * from location_fake_data;
+
+drop FUNCTION budgetreturndata();
+  
+  
+CREATE OR REPLACE FUNCTION budgetreturndata(
+) RETURNS BOOLEAN AS
+$$
+-- Declare Branch Record and GL Record
+DECLARE
+    additionaldata RECORD;
+   insertingLoopforemployee RECORD;   
+  lid int;
+ department_idmasterid integer;
+BEGIN
+   FOR lid in (SELECT a.n as id
+							from generate_series(1, 1) as a(n))
+loop
+
+--select round(random()*(5-1)+1) into lid;
+
+
+INSERT INTO public.departments_fake_data
+			VALUES(nextval('departments_department_id_seq'), 'Marketing', lid)
+		
+RETURNING department_id into department_idmasterid;
+
+
+for insertingLoopforemployee in (SELECT a.n as id
+				from generate_series(1, 10000) as a(n))
+loop
+--select country_id from countries c into cid ;
+	INSERT INTO public.employees_fake_data
+	VALUES(nextval('public.emp_seq'), 
+		concat('Bibek',insertingLoopforemployee.id::varchar), 
+		department_idmasterid);
+
+END LOOP;
+end loop;
+    RETURN TRUE;
+END;
+$$ LANGUAGE PLPGSQL;
+ 
+select * from budgetreturndata();
+
+
+
+
+explain select  e.department_id ,count(e.id) 
+from employees_fake_data e
+--where department_id in (select department_id 
+ --    from departments_fake_data)
+    group by  e.department_id ;
+    
+    
+   explain select df.department_name ,count(*) 
+from employees_fake_data ef join 
+      departments_fake_data df
+      on ef.department_id =df.department_id
+     group by df.department_name  ;
