@@ -1,0 +1,23 @@
+CREATE OR REPLACE PROCEDURE get_all_users()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    cur_cursor CURSOR FOR SELECT id , first_name, last_name FROM employees;
+    v_id INTEGER;
+    v_fname VARCHAR(50);
+    v_lname VARCHAR(100);
+BEGIN
+    OPEN cur_cursor;
+    FETCH NEXT FROM cur_cursor INTO v_id, v_fname, v_lname;
+    WHILE FOUND LOOP
+        -- Send result row to client
+        RAISE NOTICE 'User id: %, fname: %, lname: %', v_id, v_fname, v_lname;
+        FETCH NEXT FROM cur_cursor INTO v_id, v_fname, v_lname;
+    END LOOP;
+    CLOSE cur_cursor;
+END;
+$$;
+
+
+
+CALL get_all_users();
