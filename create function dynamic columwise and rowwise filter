@@ -1,0 +1,34 @@
+drop FUNCTION dynamic_filter(
+    table_name text,
+    column_names text[],
+    filter_values text[]
+)
+
+CREATE OR REPLACE FUNCTION dynamic_filter(
+    table_name text,
+    column_names text[],
+    filter_values text[]
+)
+RETURNS TABLE (countTotal bigint) AS $$
+DECLARE
+    filter_clause text;
+    query1 text;
+BEGIN
+    filter_clause := '';
+    FOR i IN 1..array_length(column_names, 1) LOOP
+        IF filter_clause <> '' THEN
+            filter_clause := filter_clause || ' AND ';
+        END IF;
+        filter_clause := filter_clause || column_names[i] || ' = $' || i;
+    END LOOP;
+    
+    query1 := 'SELECT count(*) as countTotal FROM ' || table_name || ' WHERE ' || filter_clause ;
+    
+    -- Execute the dynamic SQL statement
+    RAISE NOTICE 'The query is %', query1;
+    
+    RETURN QUERY EXECUTE query1 USING filter_values[1], filter_values[2], filter_values[3],filter_values[4];
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT * FROM dynamic_filter('employees', ARRAY['first_name','last_name','email'], ARRAY['Ram','Khadka','khadka@gmail.com']);
